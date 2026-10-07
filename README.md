@@ -1,6 +1,6 @@
 # PacketWarden
 
-[![CI](https://github.com/shashank/packetwarden/actions/workflows/ci.yml/badge.svg)](https://github.com/shashank/packetwarden/actions)
+[![CI](https://github.com/shashankd06/PacketWarden-Python-Firewall-Engine/actions/workflows/ci.yml/badge.svg)](https://github.com/shashankd06/PacketWarden-Python-Firewall-Engine/actions)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
