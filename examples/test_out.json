@@ -1,22 +1,22 @@
 {
   "capture_file": "examples/sample_capture.pcap",
   "parse_stats": {
-    "total_packets": 41,
-    "parsed_packets": 41,
+    "total_packets": 37,
+    "parsed_packets": 37,
     "non_ip_packets": 0,
     "malformed_packets": 0
   },
   "firewall_stats": {
-    "allowed_count": 24,
-    "blocked_count": 17,
-    "stateful_permitted_replies": 9,
+    "allowed_count": 15,
+    "blocked_count": 22,
+    "stateful_permitted_replies": 0,
     "rule_hits": {
       "ALLOW tcp 192.168.1.0/24:any -> any:80,443": 10,
-      "ALLOW udp 192.168.1.0/24:any -> 8.8.8.8:53": 4,
+      "ALLOW udp 192.168.1.0/24:any -> 8.8.8.8:53": 1,
       "ALLOW icmp 192.168.1.0/24:any -> any:any": 1
     },
     "default_policy_hits": {
-      "DENY": 17
+      "DENY": 22
     }
   },
   "top_src_ips": [
@@ -33,11 +33,11 @@
       4
     ],
     [
-      "8.8.8.8",
-      4
+      "192.168.1.10",
+      2
     ],
     [
-      "192.168.1.10",
+      "192.168.1.11",
       2
     ]
   ],
@@ -55,11 +55,11 @@
       4
     ],
     [
-      "192.168.1.15",
-      4
+      "192.168.1.10",
+      1
     ],
     [
-      "192.168.1.10",
+      "192.168.1.11",
       1
     ]
   ],
@@ -87,7 +87,7 @@
   ],
   "connection_stats": {
     "active_connections": 22,
-    "expired_connections": 4
+    "expired_connections": 1
   },
   "alert_summary": {
     "total_alerts": 1,

@@ -124,3 +124,100 @@ def test_cli_stateless_flag():
     finally:
         if os.path.exists(pcap_path):
             os.remove(pcap_path)
+
+
+def test_tcp_stateful_handshake_and_unsolicited_reply():
+    """Verify stateful vs stateless behavior for TCP.
+
+    - 1 complete outbound TCP handshake (SYN, SYN-ACK, ACK) plus data (client -> server and server -> client)
+    - 1 unsolicited inbound SYN-ACK (server -> client on unknown port)
+    - Policy: DEFAULT DENY, ALLOW tcp 192.168.1.10:any -> any:80
+
+    In stateful mode:
+      - Outbound packets (SYN, ACK, client data) are allowed by rule.
+      - Return reply packets (SYN-ACK, server data reply) are allowed by stateful conntrack.
+      - Stateful flow matches counter is >= 1 (SYN-ACK + server data = 2 matches).
+      - Unsolicited inbound SYN-ACK is blocked (stateful drop).
+
+    In --no-stateful mode:
+      - Return reply packets from server are blocked because they match no inbound ALLOW rule.
+      - Stateful flow matches is 0.
+    """
+    base_t = 2000.0
+    client_ip = "192.168.1.10"
+    server_ip = "93.184.216.34"
+
+    # Outbound handshake: SYN, SYN-ACK, ACK
+    handshake = make_tcp_handshake(
+        src_ip=client_ip,
+        dst_ip=server_ip,
+        sport=54321,
+        dport=80,
+        base_time=base_t,
+    )
+
+    # Client data (outbound)
+    client_data = (
+        Ether()
+        / IP(src=client_ip, dst=server_ip)
+        / TCP(sport=54321, dport=80, flags="PA", seq=102, ack=202)
+        / b"GET / HTTP/1.1\r\n\r\n"
+    )
+    client_data.time = base_t + 0.03
+
+    # Server data reply (inbound return traffic)
+    server_reply = (
+        Ether()
+        / IP(src=server_ip, dst=client_ip)
+        / TCP(sport=80, dport=54321, flags="PA", seq=202, ack=120)
+        / b"HTTP/1.1 200 OK\r\n\r\n"
+    )
+    server_reply.time = base_t + 0.05
+
+    # Unsolicited inbound SYN-ACK (no prior outbound SYN)
+    unsolicited_synack = (
+        Ether()
+        / IP(src=server_ip, dst=client_ip)
+        / TCP(sport=8080, dport=59999, flags="SA", seq=500, ack=1)
+    )
+    unsolicited_synack.time = base_t + 0.10
+
+    packets = handshake + [client_data, server_reply, unsolicited_synack]
+    pcap_path = create_temp_pcap(packets)
+
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as rf:
+        rf.write(
+            "DEFAULT DENY\n"
+            "ALLOW tcp 192.168.1.10:any -> any:80\n"
+        )
+        rules_path = rf.name
+
+    try:
+        from packetwarden.cli import run_analysis
+        from packetwarden.config import WardenConfig
+
+        # 1. Stateful mode
+        rep_stateful = run_analysis(pcap_path, rules_path, WardenConfig(stateful_mode=True))
+        # Total packets: 3 (handshake) + 2 (data/reply) + 1 (unsolicited) = 6 packets
+        assert rep_stateful.parse_stats.parsed_packets == 6
+        # Server replies (SYN-ACK and HTTP data response) permitted by conntrack
+        assert rep_stateful.firewall_stats.stateful_permitted_replies >= 1
+        # Unsolicited packet is blocked
+        assert rep_stateful.firewall_stats.blocked_count >= 1
+        # In stateful mode, all 5 legitimate packets are allowed, 1 unsolicited blocked
+        assert rep_stateful.firewall_stats.allowed_count == 5
+        assert rep_stateful.firewall_stats.blocked_count == 1
+
+        # 2. Stateless mode (--no-stateful)
+        rep_stateless = run_analysis(pcap_path, rules_path, WardenConfig(stateful_mode=False))
+        # In stateless mode: server replies cannot match outbound rule (src=192.168.1.10)
+        # So SYN-ACK and server reply are blocked!
+        assert rep_stateless.firewall_stats.stateful_permitted_replies == 0
+        # Outbound packets allowed: SYN, client ACK, client data = 3
+        assert rep_stateless.firewall_stats.allowed_count == 3
+        # Inbound packets blocked: server SYN-ACK, server reply, unsolicited SYN-ACK = 3
+        assert rep_stateless.firewall_stats.blocked_count == 3
+    finally:
+        for p in (pcap_path, rules_path):
+            if os.path.exists(p):
+                os.remove(p)

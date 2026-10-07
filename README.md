@@ -99,6 +99,38 @@ Analyze the included sample capture with the example ruleset:
 python -m packetwarden analyze examples/sample_capture.pcap --rules examples/rules.txt --report out.json
 ```
 
+Output:
+```text
+======================================================================
+                  PACKETWARDEN ANALYSIS REPORT                  
+======================================================================
+Capture File: examples/sample_capture.pcap
+Packets Processed: 41 / 41 (Non-IP: 0, Malformed: 0)
+----------------------------------------------------------------------
+FIREWALL EVALUATION:
+  Allowed Packets:        24
+  Blocked Packets:        17
+  Stateful Flow Matches:  9
+  Rule Match Breakdown:
+    - [  10] ALLOW tcp 192.168.1.0/24:any -> any:80,443
+    - [   4] ALLOW udp 192.168.1.0/24:any -> 8.8.8.8:53
+    - [   1] ALLOW icmp 192.168.1.0/24:any -> any:any
+----------------------------------------------------------------------
+TRAFFIC PROFILE (TOP TALKERS):
+  Top Sources:      203.0.113.55 (17), 93.184.216.34 (5), 192.168.1.15 (4), 8.8.8.8 (4)
+  Top Destinations: 192.168.1.1 (17), 93.184.216.34 (10), 8.8.8.8 (4), 192.168.1.15 (4)
+  Top Dst Ports:    443 (10), 53 (4), 40000 (1), 40001 (1)
+----------------------------------------------------------------------
+CONNECTION TRACKING:
+  Active States in Table:  22
+  Expired Flow States:     4
+----------------------------------------------------------------------
+SECURITY ALERTS DETECTED (1 total):
+  1. [HIGH]   PortScanDetector from 203.0.113.55 at t=1700000025.75s
+     Details: SYN Port Scan detected: 203.0.113.55 targeted 15 distinct ports across 1 hosts within 10.0s (SYN ratio: 100%).
+======================================================================
+```
+
 ---
 
 ## Performance & Benchmark

@@ -78,7 +78,11 @@ def run_analysis(
         # However, unsolicited inbound non-SYN packets without prior connection state are dropped.
         # For UDP: replies matching an active flow are permitted; otherwise evaluate rules and create flow on ALLOW.
         if config.stateful_mode and pkt.is_tcp:
-            if conn is not None and is_reply and conn.state in (TcpState.ESTABLISHED, TcpState.CLOSING):
+            if conn is not None and is_reply and conn.state in (
+                TcpState.SYN_RECEIVED,
+                TcpState.ESTABLISHED,
+                TcpState.CLOSING,
+            ):
                 firewall_stats.allowed_count += 1
                 firewall_stats.stateful_permitted_replies += 1
             elif conn is None and ("A" in pkt.tcp_flag_set or "F" in pkt.tcp_flag_set):

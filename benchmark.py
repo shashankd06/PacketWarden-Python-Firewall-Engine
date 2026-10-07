@@ -28,14 +28,31 @@ def generate_sample_pcap(path: str) -> None:
         )
         packets.extend(handshake)
 
-    # 2. DNS queries
-    for domain in ["google.com", "github.com", "python.org", "wikipedia.org"]:
+    # 2. DNS queries with matching server replies (demonstrating stateful UDP return flow)
+    dns_domains = ["google.com", "github.com", "python.org", "wikipedia.org"]
+    for idx, domain in enumerate(dns_domains):
+        cport = 53000 + idx
+        t_query = base_t + 15.0 + (idx * 0.5)
+        # Client query (outbound)
         packets.append(
             make_dns_query(
                 qname=domain,
                 src_ip="192.168.1.15",
                 dst_ip="8.8.8.8",
-                time=base_t + 15.0,
+                sport=cport,
+                dport=53,
+                time=t_query,
+            )
+        )
+        # Server response (inbound reply permitted statefully)
+        packets.append(
+            make_dns_query(
+                qname=domain,
+                src_ip="8.8.8.8",
+                dst_ip="192.168.1.15",
+                sport=53,
+                dport=cport,
+                time=t_query + 0.05,
             )
         )
 
