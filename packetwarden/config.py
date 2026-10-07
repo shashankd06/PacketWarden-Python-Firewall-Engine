@@ -9,8 +9,10 @@ class WardenConfig:
 
     # Connection tracking options
     stateful_mode: bool = True
-    idle_timeout: float = 300.0  # seconds
-    tcp_syn_timeout: float = 30.0  # seconds
+    idle_timeout: float = 300.0  # seconds (TCP established)
+    tcp_syn_timeout: float = 30.0  # seconds (TCP handshake)
+    udp_idle_timeout: float = 30.0  # seconds (UDP flows)
+    udp_dns_timeout: float = 5.0  # seconds (DNS port 53 query/response)
     max_conntrack_entries: int = 100_000
 
     # Port scan detector

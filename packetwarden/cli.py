@@ -33,6 +33,8 @@ def run_analysis(
     conntrack = ConnectionTracker(
         idle_timeout=config.idle_timeout,
         tcp_syn_timeout=config.tcp_syn_timeout,
+        udp_idle_timeout=config.udp_idle_timeout,
+        udp_dns_timeout=config.udp_dns_timeout,
         max_table_size=config.max_conntrack_entries,
     )
 
@@ -74,6 +76,7 @@ def run_analysis(
         # 2. Firewall evaluation
         # In stateful mode: established bidirectional reply traffic initiated lawfully is permitted.
         # However, unsolicited inbound non-SYN packets without prior connection state are dropped.
+        # For UDP: replies matching an active flow are permitted; otherwise evaluate rules and create flow on ALLOW.
         if config.stateful_mode and pkt.is_tcp:
             if conn is not None and is_reply and conn.state in (TcpState.ESTABLISHED, TcpState.CLOSING):
                 firewall_stats.allowed_count += 1
@@ -88,6 +91,32 @@ def run_analysis(
                 action, rule = rule_engine.evaluate(pkt)
                 if action == "ALLOW":
                     firewall_stats.allowed_count += 1
+                else:
+                    firewall_stats.blocked_count += 1
+
+                if rule is not None:
+                    firewall_stats.rule_hits[rule.raw_text] = (
+                        firewall_stats.rule_hits.get(rule.raw_text, 0) + 1
+                    )
+                else:
+                    firewall_stats.default_policy_hits[rule_engine.default_action] = (
+                        firewall_stats.default_policy_hits.get(rule_engine.default_action, 0) + 1
+                    )
+        elif config.stateful_mode and pkt.is_udp:
+            if conn is not None and is_reply:
+                # Reply to an established/active outbound UDP flow
+                firewall_stats.allowed_count += 1
+                firewall_stats.stateful_permitted_replies += 1
+            elif conn is not None and not is_reply:
+                # Outbound packet on existing active flow
+                firewall_stats.allowed_count += 1
+            else:
+                # No active flow: evaluate against firewall rules
+                action, rule = rule_engine.evaluate(pkt)
+                if action == "ALLOW":
+                    firewall_stats.allowed_count += 1
+                    # Outbound packet permitted by rules creates a new UDP flow
+                    conntrack.create_udp_flow(pkt)
                 else:
                     firewall_stats.blocked_count += 1
 

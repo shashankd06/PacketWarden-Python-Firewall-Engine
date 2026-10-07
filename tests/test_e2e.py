@@ -40,9 +40,22 @@ def test_end_to_end_analysis_mixed_traffic(capsys):
         qname="docs.python.org",
         src_ip="192.168.1.10",
         dst_ip="8.8.8.8",
+        sport=53000,
+        dport=53,
         time=base_t + 2.0,
     )
     packets.append(normal_dns)
+
+    # Inbound DNS reply matching the outbound UDP query (testing stateful UDP return flow)
+    dns_reply = make_dns_query(
+        qname="docs.python.org",
+        src_ip="8.8.8.8",
+        dst_ip="192.168.1.10",
+        sport=53,
+        dport=53000,
+        time=base_t + 2.05,
+    )
+    packets.append(dns_reply)
 
     for i in range(16):
         tunnel_dns = make_dns_query(
@@ -81,6 +94,7 @@ def test_end_to_end_analysis_mixed_traffic(capsys):
         assert report_data["parse_stats"]["parsed_packets"] == len(packets)
         assert report_data["firewall_stats"]["allowed_count"] > 0
         assert report_data["firewall_stats"]["blocked_count"] > 0
+        assert report_data["firewall_stats"]["stateful_permitted_replies"] > 0
         assert report_data["alert_summary"]["total_alerts"] >= 2
         assert report_data["alert_summary"]["high_severity"] >= 1
 
@@ -98,3 +112,15 @@ def test_end_to_end_analysis_mixed_traffic(capsys):
         for p in (pcap_path, rules_path, report_json_path):
             if os.path.exists(p):
                 os.remove(p)
+
+
+def test_cli_stateless_flag():
+    # Verify --no-stateful disables stateful connection tracking
+    pkt = make_tcp_handshake(src_ip="192.168.1.10", dst_ip="10.0.0.1")[0]
+    pcap_path = create_temp_pcap([pkt])
+    try:
+        exit_code = main(["analyze", pcap_path, "--no-stateful"])
+        assert exit_code == 0
+    finally:
+        if os.path.exists(pcap_path):
+            os.remove(pcap_path)

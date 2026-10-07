@@ -57,6 +57,13 @@ stateDiagram-v2
     CLOSED --> [*]
 ```
 
+### UDP Flow Tracking (Pseudo-State Approximation)
+Unlike TCP, UDP is fundamentally **connectionless**: it has no handshakes (`SYN`/`ACK`), sequence numbers, or explicit teardowns (`FIN`/`RST`). Therefore, UDP "state" in any stateful firewall is an **approximation** based entirely on time:
+1. **Flow Initiation:** When an outbound UDP packet matches an `ALLOW` firewall rule, a bidirectional flow entry (`UdpFlow`) is inserted into the table keyed by its canonical 5-tuple.
+2. **Stateful Reply:** While the flow remains active, return packets from the destination are permitted automatically without requiring an explicit inbound rule.
+3. **Timeout Expiration:** Because UDP has no explicit close signal, flows are considered expired after an idle timeout. PacketWarden uses a configurable idle timeout (default `30s`, with a tighter `5s` timeout for DNS on port 53). New packets matching the flow refresh its `last_seen` timestamp.
+4. **Unsolicited UDP:** Inbound UDP packets without an active flow are evaluated against the default firewall policy.
+
 ### Table Bounding & Eviction
 To prevent Denial of Service (state table exhaustion), the table is capped to a configurable size (default `100,000` entries) using an `OrderedDict` with Least-Recently-Used (LRU) eviction. Connections that exceed the idle timeout (`300s`) or half-open handshake timeout (`30s`) relative to packet timestamps are purged.
 

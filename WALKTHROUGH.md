@@ -34,6 +34,17 @@ In a stateless packet filter, if an internal host (`192.168.1.10`) initiates an 
    - Any `RST` immediately transitions the state to `CLOSED`.
 3. **Stateful Filtering:** If a packet is identified as a reply for an existing connection that was legitimately initiated in an allowed direction, it is permitted automatically. Unsolicited inbound packets with flags like `ACK` or `FIN` that have no matching connection in the state table are dropped.
 
+### UDP Flow Tracking & Why UDP "State" Is a Timeout-Based Approximation
+UDP is inherently a stateless, datagram-based protocol without explicit handshakes (`SYN`/`ACK`) or teardown signaling (`FIN`/`RST`). Unlike TCP, the transport layer provides no protocol-level indication of when a conversation begins, progresses, or terminates.
+
+Consequently, stateful firewalls track UDP by creating a **pseudo-connection state** based on a timeout heuristic:
+1. **Outbound Flow Creation:** The first outbound UDP datagram that matches an `ALLOW` rule instantiates an entry in the flow table keyed by its canonical 5-tuple: `(udp, min(ip1, ip2), min(port1, port2), max(ip1, ip2), max(port1, port2))`.
+2. **Dynamic Return Path (Hole Punching):** Any incoming UDP packet from the remote destination directed back to the originating client IP and port is permitted as a stateful reply without requiring a static inbound firewall rule.
+3. **Timeout Eviction:** Because there is no `FIN` or `RST` to signal that the application finished communicating, the flow must be closed purely when a timer expires. PacketWarden tracks `last_seen` timestamps from packet metadata and evicts flows that have been idle longer than the configured timeout:
+   - **General UDP:** Default `30s` (sufficient for NTP, syslog, or peer-to-peer heartbeats).
+   - **DNS (port 53):** Default `5s` (transactional request/reply pairs typically complete within hundreds of milliseconds; shorter timeouts minimize the window for DNS spoofing or table exhaustion).
+4. **Traffic Refresh:** Any forward or reverse packet belonging to the flow updates `last_seen`, keeping active long-lived UDP sessions (e.g. media streams, VPN tunnels) alive.
+
 ---
 
 ## 3. Attack Detectors & Heuristics

@@ -130,3 +130,100 @@ def test_duplicate_or_reordered_packets_do_not_corrupt_state():
     # Duplicate SYN-ACK
     conn, _ = tracker.process_packet(make_pkt(10.7, "2.2.2.2", "1.1.1.1", 80, 5000, "SA"))
     assert conn.state == TcpState.SYN_RECEIVED
+
+
+def make_udp_pkt(
+    time: float,
+    src: str,
+    dst: str,
+    sport: int,
+    dport: int,
+    length: int = 50,
+) -> PacketInfo:
+    return PacketInfo(
+        timestamp=time,
+        length=length,
+        src_ip=src,
+        dst_ip=dst,
+        protocol="udp",
+        src_port=sport,
+        dst_port=dport,
+    )
+
+
+def test_udp_flow_outbound_and_reply_allowed():
+    tracker = ConnectionTracker(udp_idle_timeout=30.0)
+    outbound = make_udp_pkt(100.0, "192.168.1.10", "8.8.8.8", 54321, 53)
+
+    # Outbound packet creates flow upon firewall rule match
+    flow = tracker.create_udp_flow(outbound)
+    assert flow is not None
+    assert flow.initiator_ip == "192.168.1.10"
+    assert flow.initiator_port == 54321
+    assert len(tracker.table) == 1
+
+    # Inbound reply packet matches tracked flow
+    reply = make_udp_pkt(100.05, "8.8.8.8", "192.168.1.10", 53, 54321)
+    ret_flow, is_reply = tracker.process_packet(reply)
+    assert ret_flow is not None
+    assert is_reply is True
+    assert ret_flow.packets_count == 2
+
+
+def test_udp_unsolicited_reply_without_flow():
+    tracker = ConnectionTracker()
+    # Unsolicited UDP packet from external host
+    unsolicited = make_udp_pkt(100.0, "8.8.8.8", "192.168.1.10", 53, 54321)
+    flow, _ = tracker.process_packet(unsolicited)
+    assert flow is None
+    assert len(tracker.table) == 0
+
+
+def test_udp_timeout_expiry_and_dns_short_timeout():
+    # General UDP timeout 30s, DNS timeout 5s
+    tracker = ConnectionTracker(udp_idle_timeout=30.0, udp_dns_timeout=5.0)
+
+    # 1. DNS flow on port 53
+    dns_pkt = make_udp_pkt(10.0, "192.168.1.10", "1.1.1.1", 60000, 53)
+    tracker.create_udp_flow(dns_pkt)
+    assert len(tracker.table) == 1
+
+    # 6 seconds later (>5s DNS timeout) -> DNS flow should expire
+    tracker.process_packet(make_udp_pkt(16.0, "192.168.1.20", "2.2.2.2", 40000, 9999))
+    key_dns = FlowKey.from_endpoints("udp", "192.168.1.10", 60000, "1.1.1.1", 53)
+    assert key_dns not in tracker.table
+    assert tracker.expired_count == 1
+
+    # 2. Non-DNS UDP flow (uses 30s timeout)
+    general_udp = make_udp_pkt(20.0, "192.168.1.10", "3.3.3.3", 50000, 1234)
+    tracker.create_udp_flow(general_udp)
+    assert len(tracker.table) == 1
+
+    # Packet at t=35.0 (15s elapsed, <30s) -> should NOT expire
+    tracker.cleanup_expired(35.0)
+    key_general = FlowKey.from_endpoints("udp", "192.168.1.10", 50000, "3.3.3.3", 1234)
+    assert key_general in tracker.table
+
+    # Packet at t=55.0 (>30s elapsed) -> expires
+    tracker.cleanup_expired(55.0)
+    assert key_general not in tracker.table
+    assert tracker.expired_count == 2
+
+
+def test_udp_flow_refresh_on_new_traffic():
+    tracker = ConnectionTracker(udp_idle_timeout=20.0)
+    outbound = make_udp_pkt(10.0, "10.0.0.1", "10.0.0.2", 1234, 5678)
+    tracker.create_udp_flow(outbound)
+
+    # Active traffic refreshes last_seen at t=25.0
+    reply = make_udp_pkt(25.0, "10.0.0.2", "10.0.0.1", 5678, 1234)
+    flow, is_reply = tracker.process_packet(reply)
+    assert flow is not None
+    assert is_reply is True
+    assert flow.last_seen == 25.0
+
+    # At t=35.0 (10s after refresh, but 25s after initial packet), flow remains active
+    tracker.cleanup_expired(35.0)
+    key = FlowKey.from_endpoints("udp", "10.0.0.1", 1234, "10.0.0.2", 5678)
+    assert key in tracker.table
+
