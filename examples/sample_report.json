@@ -1,0 +1,115 @@
+{
+  "capture_file": "examples/sample_capture.pcap",
+  "parse_stats": {
+    "total_packets": 37,
+    "parsed_packets": 37,
+    "non_ip_packets": 0,
+    "malformed_packets": 0
+  },
+  "firewall_stats": {
+    "allowed_count": 15,
+    "blocked_count": 22,
+    "stateful_permitted_replies": 0,
+    "rule_hits": {
+      "ALLOW tcp 192.168.1.0/24:any -> any:80,443": 10,
+      "ALLOW udp 192.168.1.0/24:any -> 8.8.8.8:53": 4,
+      "ALLOW icmp 192.168.1.0/24:any -> any:any": 1
+    },
+    "default_policy_hits": {
+      "DENY": 22
+    }
+  },
+  "top_src_ips": [
+    [
+      "203.0.113.55",
+      17
+    ],
+    [
+      "93.184.216.34",
+      5
+    ],
+    [
+      "192.168.1.15",
+      4
+    ],
+    [
+      "192.168.1.10",
+      2
+    ],
+    [
+      "192.168.1.11",
+      2
+    ]
+  ],
+  "top_dst_ips": [
+    [
+      "192.168.1.1",
+      17
+    ],
+    [
+      "93.184.216.34",
+      10
+    ],
+    [
+      "8.8.8.8",
+      4
+    ],
+    [
+      "192.168.1.10",
+      1
+    ],
+    [
+      "192.168.1.11",
+      1
+    ]
+  ],
+  "top_dst_ports": [
+    [
+      443,
+      10
+    ],
+    [
+      53,
+      4
+    ],
+    [
+      40000,
+      1
+    ],
+    [
+      40001,
+      1
+    ],
+    [
+      40002,
+      1
+    ]
+  ],
+  "connection_stats": {
+    "active_connections": 22,
+    "expired_connections": 0
+  },
+  "alert_summary": {
+    "total_alerts": 1,
+    "high_severity": 1,
+    "medium_severity": 0,
+    "low_severity": 0
+  },
+  "alerts": [
+    {
+      "detector_name": "PortScanDetector",
+      "severity": "HIGH",
+      "source_ip": "203.0.113.55",
+      "start_time": 1700000025.05,
+      "end_time": 1700000025.75,
+      "evidence": {
+        "distinct_ports": 15,
+        "distinct_destinations": 1,
+        "total_probes": 15,
+        "syn_ratio": 1.0,
+        "scan_type": "SYN Port Scan"
+      },
+      "description": "SYN Port Scan detected: 203.0.113.55 targeted 15 distinct ports across 1 hosts within 10.0s (SYN ratio: 100%)."
+    }
+  ]
+}

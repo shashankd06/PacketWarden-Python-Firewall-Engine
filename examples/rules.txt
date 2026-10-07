@@ -1,0 +1,16 @@
+# PacketWarden Example Firewall Ruleset
+# Evaluation is first-match-wins.
+DEFAULT DENY
+
+# Allow local web browsing and secure web
+ALLOW tcp 192.168.1.0/24:any -> any:80,443
+
+# Allow standard DNS resolution to Google and Cloudflare DNS
+ALLOW udp 192.168.1.0/24:any -> 8.8.8.8:53
+ALLOW udp 192.168.1.0/24:any -> 1.1.1.1:53
+
+# Allow outbound ICMP ping from the trusted subnet
+ALLOW icmp 192.168.1.0/24:any -> any:any
+
+# Explicitly block outbound SSH from restricted hosts
+DENY tcp 192.168.1.100:any -> any:22
